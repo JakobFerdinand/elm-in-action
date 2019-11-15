@@ -1,7 +1,7 @@
 port module PhotoGroove exposing (main)
 
 import Browser
-import Html exposing (Attribute, Html, button, div, h1, h3, img, input, label, node, text)
+import Html exposing (Attribute, Html, button, canvas, div, h1, h3, img, input, label, node, text)
 import Html.Attributes as Attr exposing (checked, class, classList, id, name, src, title, type_)
 import Html.Events exposing (on, onClick)
 import Http
@@ -26,6 +26,7 @@ type Msg
     = ClickedPhoto String
     | ClickedSize ThumbnailSize
     | ClickedSurpriseMe
+    | GotActivity String
     | GotPhotos (Result Http.Error (List Photo))
     | GotRandomPhoto Photo
     | SlidHue Int
@@ -67,6 +68,7 @@ viewLoaded photos selectedUrl model =
     , button
         [ onClick ClickedSurpriseMe ]
         [ text "Surprise Me!" ]
+    , div [ class "activity" ] [ text model.activity ]
     , div [ class "filters" ]
         [ viewFilter SlidHue "Hue" model.hue
         , viewFilter SlidRipple "Ripple" model.ripple
@@ -78,11 +80,7 @@ viewLoaded photos selectedUrl model =
     , div
         [ id "thumbnails", class (sizeToClass model.chosenSize) ]
         (List.map (viewThumbnail selectedUrl) photos)
-    , img
-        [ class "large"
-        , src (urlPrefix ++ "large/" ++ selectedUrl)
-        ]
-        []
+    , canvas [ id "main-canvas", class "large" ] []
     ]
 
 
@@ -139,9 +137,12 @@ sizeToClass size =
 port setFilters : FilterOptions -> Cmd msg
 
 
+port activityChanges : (String -> msg) -> Sub msg
+
+
 type alias FilterOptions =
     { url : String
-    , filters : List { name : String, amount : Int }
+    , filters : List { name : String, amount : Float }
     }
 
 
@@ -168,6 +169,7 @@ type Status
 
 type alias Model =
     { status : Status
+    , activity : String
     , chosenSize : ThumbnailSize
     , hue : Int
     , ripple : Int
@@ -178,6 +180,7 @@ type alias Model =
 initialModel : Model
 initialModel =
     { status = Loading
+    , activity = ""
     , chosenSize = Medium
     , hue = 0
     , ripple = 0
@@ -231,15 +234,20 @@ update msg model =
                 Errored _ ->
                     ( model, Cmd.none )
 
-        GotPhotos (Ok photos) ->
-            case photos of
-                first :: _ ->
-                    ( { model | status = Loaded photos first.url }
-                    , Cmd.none
-                    )
+        GotActivity activity ->
+            ( { model | activity = activity }, Cmd.none )
 
-                [] ->
-                    ( { model | status = Errored "0 photos found" }, Cmd.none )
+        GotPhotos (Ok photos) ->
+            applyFilters
+                { model
+                    | status =
+                        case photos of
+                            first :: _ ->
+                                Loaded photos first.url
+
+                            [] ->
+                                Errored "0 photos found"
+                }
 
         GotPhotos (Err _) ->
             ( { model | status = Errored "Server error!" }, Cmd.none )
@@ -248,13 +256,13 @@ update msg model =
             applyFilters { model | status = selectUrl photo.url model.status }
 
         SlidHue hue ->
-            ( { model | hue = hue }, Cmd.none )
+            applyFilters { model | hue = hue }
 
         SlidNoise noise ->
-            ( { model | noise = noise }, Cmd.none )
+            applyFilters { model | noise = noise }
 
         SlidRipple ripple ->
-            ( { model | ripple = ripple }, Cmd.none )
+            applyFilters { model | ripple = ripple }
 
 
 applyFilters : Model -> ( Model, Cmd Msg )
@@ -263,9 +271,9 @@ applyFilters model =
         Loaded photos selectedUrl ->
             let
                 filters =
-                    [ { name = "Hue", amount = model.hue }
-                    , { name = "Ripple", amount = model.ripple }
-                    , { name = "Noise", amount = model.noise }
+                    [ { name = "Hue", amount = toFloat model.hue / 11 }
+                    , { name = "Ripple", amount = toFloat model.ripple / 11 }
+                    , { name = "Noise", amount = toFloat model.noise / 11 }
                     ]
 
                 url =
@@ -280,14 +288,28 @@ applyFilters model =
             ( model, Cmd.none )
 
 
-main : Program () Model Msg
+main : Program Float Model Msg
 main =
     Browser.element
-        { init = \flags -> ( initialModel, initialCmd )
+        { init = init
         , view = view
         , update = update
-        , subscriptions = \_ -> Sub.none
+        , subscriptions = subscriptions
         }
+
+
+init : Float -> ( Model, Cmd Msg )
+init flags =
+    let
+        activity =
+            "initializing Pasta v" ++ String.fromFloat flags
+    in
+    ( { initialModel | activity = activity }, initialCmd )
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    activityChanges GotActivity
 
 
 rangeSlider : List (Attribute msg) -> List (Html msg) -> Html msg

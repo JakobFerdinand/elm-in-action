@@ -10,7 +10,7 @@ import Url.Parser as Parser exposing ((</>), Parser, s, string)
 
 
 type alias Model =
-    { page : Page }
+    { page : Page, key : Nav.Key }
 
 
 type Page
@@ -86,12 +86,23 @@ viewFooter =
 
 
 type Msg
-    = NothingYet
+    = ClickedLink Browser.UrlRequest
+    | ChangedUrl Url
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ( model, Cmd.none )
+    case msg of
+        ClickedLink onUrlRequest ->
+            case onUrlRequest of
+                Browser.External href ->
+                    ( model, Nav.load href )
+
+                Browser.Internal url ->
+                    ( model, Nav.pushUrl model.key (Url.toString url) )
+
+        ChangedUrl url ->
+            ( { model | page = urlToPage url }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -101,29 +112,30 @@ subscriptions model =
 
 init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
-    let
-        parser : Parser (Page -> a) a
-        parser =
-            Parser.oneOf
-                [ Parser.map Folders Parser.top
-                , Parser.map Gallery (s "gallery")
-                , Parser.map SelectedPhoto (s "photos" </> Parser.string)
-                ]
+    ( { page = urlToPage url, key = key }, Cmd.none )
 
-        urlToPage : Url -> Page
-        urlToPage u =
-            Parser.parse parser u
-                |> Maybe.withDefault NotFound
-    in
-    ( { page = urlToPage url }, Cmd.none )
+
+parser : Parser (Page -> a) a
+parser =
+    Parser.oneOf
+        [ Parser.map Folders Parser.top
+        , Parser.map Gallery (s "gallery")
+        , Parser.map SelectedPhoto (s "photos" </> Parser.string)
+        ]
+
+
+urlToPage : Url -> Page
+urlToPage url =
+    Parser.parse parser url
+        |> Maybe.withDefault NotFound
 
 
 main : Program () Model Msg
 main =
     Browser.application
         { init = init
-        , onUrlRequest = \_ -> Debug.todo "handle URL requests"
-        , onUrlChange = \_ -> Debug.todo "handle URL change"
+        , onUrlRequest = ClickedLink
+        , onUrlChange = ChangedUrl
         , view = view
         , update = update
         , subscriptions = subscriptions

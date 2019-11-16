@@ -3,7 +3,6 @@ module Main exposing (Model, view)
 import Browser exposing (Document)
 import Html exposing (Html, a, footer, h1, li, nav, text, ul)
 import Html.Attributes exposing (classList, href)
-import Html.Events exposing (onMouseOver)
 import Html.Lazy exposing (lazy)
 
 
@@ -35,9 +34,6 @@ view model =
 viewHeader : Page -> Html Msg
 viewHeader page =
     let
-        _ =
-            Debug.log "Running viewHeader with" page
-
         logo =
             h1 [] [ text "Photo Groove" ]
 
@@ -52,7 +48,7 @@ viewHeader page =
             li [ classList [ ( "active", page == targetPage ) ] ]
                 [ a [ href url ] [ text caption ] ]
     in
-    nav [ onMouseOver NothingYet ] [ logo, links ]
+    nav [] [ logo, links ]
 
 
 viewFooter : Html msg

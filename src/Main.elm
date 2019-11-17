@@ -5,6 +5,8 @@ import Browser.Navigation as Nav
 import Html exposing (Html, a, footer, h1, li, nav, text, ul)
 import Html.Attributes exposing (classList, href)
 import Html.Lazy exposing (lazy)
+import PhotoFolders as Folders
+import PhotoGallery as Gallery
 import Url exposing (Url)
 import Url.Parser as Parser exposing ((</>), Parser, s, string)
 
@@ -13,10 +15,15 @@ type alias Model =
     { page : Page, key : Nav.Key }
 
 
-type Page
-    = SelectedPhoto String
-    | Gallery
+type Route
+    = Gallery
     | Folders
+    | SelectedPhoto String
+
+
+type Page
+    = GalleryPage Gallery.Model
+    | FoldersPage Folders.Model
     | NotFound
 
 
@@ -47,7 +54,7 @@ viewHeader page =
                 , navLink Gallery { url = "/gallery", caption = "Gallery" }
                 ]
 
-        navLink : Page -> { url : String, caption : String } -> Html msg
+        navLink : Route -> { url : String, caption : String } -> Html msg
         navLink targetPage { url, caption } =
             li [ classList [ ( "active", isActive { link = targetPage, page = page } ) ] ]
                 [ a [ href url ] [ text caption ] ]
@@ -55,28 +62,22 @@ viewHeader page =
     nav [] [ logo, links ]
 
 
-isActive : { link : Page, page : Page } -> Bool
+isActive : { link : Route, page : Page } -> Bool
 isActive { link, page } =
     case ( link, page ) of
-        ( Gallery, Gallery ) ->
+        ( Gallery, GalleryPage _ ) ->
             True
 
         ( Gallery, _ ) ->
             False
 
-        ( Folders, Folders ) ->
-            True
-
-        ( Folders, SelectedPhoto _ ) ->
+        ( Folders, FoldersPage _ ) ->
             True
 
         ( Folders, _ ) ->
-            False
+            True
 
         ( SelectedPhoto _, _ ) ->
-            False
-
-        ( NotFound, _ ) ->
             False
 
 
@@ -115,7 +116,7 @@ init flags url key =
     ( { page = urlToPage url, key = key }, Cmd.none )
 
 
-parser : Parser (Page -> a) a
+parser : Parser (Route -> a) a
 parser =
     Parser.oneOf
         [ Parser.map Folders Parser.top
@@ -126,8 +127,18 @@ parser =
 
 urlToPage : Url -> Page
 urlToPage url =
-    Parser.parse parser url
-        |> Maybe.withDefault NotFound
+    case Parser.parse parser url of
+        Just Gallery ->
+            GalleryPage (Tuple.first (Gallery.init 1))
+
+        Just Folders ->
+            FoldersPage (Tuple.first (Folders.init ()))
+
+        Just (SelectedPhoto filename) ->
+            FoldersPage (Tuple.first (Folders.init ()))
+
+        Nothing ->
+            NotFound
 
 
 main : Program () Model Msg

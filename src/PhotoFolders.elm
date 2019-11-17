@@ -47,9 +47,9 @@ initialModel =
     }
 
 
-init : () -> ( Model, Cmd Msg )
-init _ =
-    ( initialModel
+init : Maybe String -> ( Model, Cmd Msg )
+init selectedFilename =
+    ( { initialModel | selectedPhotoUrl = selectedFilename }
     , Http.get
         { url = "http://elm-in-action.com/folders/list"
         , expect = Http.expectJson LoadPage modelDecoder
@@ -215,7 +215,7 @@ urlPrefix =
     "http://elm-in-action.com/"
 
 
-main : Program () Model Msg
+main : Program (Maybe String) Model Msg
 main =
     Browser.element
         { init = init

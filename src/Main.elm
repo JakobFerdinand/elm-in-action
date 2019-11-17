@@ -118,7 +118,7 @@ update msg model =
                     ( model, Nav.pushUrl model.key (Url.toString url) )
 
         ChangedUrl url ->
-            ( { model | page = urlToPage model.version url }, Cmd.none )
+            updateUrl url model
 
         GotFoldersMsg foldersMsg ->
             case model.page of
@@ -164,9 +164,7 @@ subscriptions model =
 
 init : Float -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init version url key =
-    ( { page = urlToPage version url, key = key, version = version }
-    , Cmd.none
-    )
+    updateUrl url { page = NotFound, key = key, version = version }
 
 
 parser : Parser (Route -> a) a
@@ -178,20 +176,23 @@ parser =
         ]
 
 
-urlToPage : Float -> Url -> Page
-urlToPage version url =
+updateUrl : Url -> Model -> ( Model, Cmd Msg )
+updateUrl url model =
     case Parser.parse parser url of
         Just Gallery ->
-            GalleryPage (Tuple.first (Gallery.init version))
+            Gallery.init model.version
+                |> toGallery model
 
         Just Folders ->
-            FoldersPage (Tuple.first (Folders.init Nothing))
+            Folders.init Nothing
+                |> toFolders model
 
         Just (SelectedPhoto filename) ->
-            FoldersPage (Tuple.first (Folders.init (Just filename)))
+            Folders.init (Just filename)
+                |> toFolders model
 
         Nothing ->
-            NotFound
+            ( { model | page = NotFound }, Cmd.none )
 
 
 main : Program Float Model Msg
